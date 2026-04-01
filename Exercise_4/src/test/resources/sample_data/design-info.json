@@ -1,0 +1,17 @@
+{
+  "sampleData": {
+    "bf3136cc-6710-46c2-84bd-f0d0b54ad296": {
+      "payload": "sample_data/list_account.dwl"
+    },
+    "86923df6-ff8d-4433-b7ac-68c15e428831": {
+      "payload": "sample_data/java.dwl",
+      "attributes": "sample_data/httprequestattributes.dwl"
+    },
+    "59038926-c50b-4ebf-9a5b-99ec49304e45": {
+      "payload": "sample_data/bulkoperationresult.dwl"
+    },
+    "6cc173c9-7478-4feb-acd9-9e6e02a5345e": {
+      "payload": "sample_data/list_java.dwl"
+    }
+  }
+}

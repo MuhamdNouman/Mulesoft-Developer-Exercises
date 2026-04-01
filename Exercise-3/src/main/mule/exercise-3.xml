@@ -1,0 +1,131 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core" xmlns:db="http://www.mulesoft.org/schema/mule/db"
+	xmlns:http="http://www.mulesoft.org/schema/mule/http"
+	xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+http://www.mulesoft.org/schema/mule/db http://www.mulesoft.org/schema/mule/db/current/mule-db.xsd
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd">
+	<http:listener-config name="HTTP_Listener_config" doc:name="HTTP Listener config" doc:id="ba3fe8e5-39e9-4d83-9511-05aedbf77cfd" >
+		<http:listener-connection host="0.0.0.0" port="8081" />
+	</http:listener-config>
+	<db:config name="Database_Config" doc:name="Database Config" doc:id="0ad64bab-bafb-4648-bc79-f55bef587be0" >
+		<db:my-sql-connection host="localhost" port="3306" user="root" password="1998" database="integration_practice" />
+	</db:config>
+	<flow name="selectData" doc:id="48d39c51-8225-47af-a5cb-52e46408e7e1" >
+		<http:listener doc:name="Listener" doc:id="cf90f351-0181-41cf-8037-f099070ac8e8" config-ref="HTTP_Listener_config" path="/e3GetData" allowedMethods="GET"/>
+		<db:select doc:name="Select" doc:id="025efc50-a187-4481-aa76-475d4dc21a15" config-ref="Database_Config" target="dbData">
+			<db:sql ><![CDATA[SELECT * FROM customers LIMIT 6]]></db:sql>
+		</db:select>
+		<ee:transform doc:name="Transform Message" doc:id="94fb51fd-fc0b-49e3-8223-016ff2aad1f1" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+vars.dbData map (item) ->{
+	customerName: (item.first_name default "") ++ " " ++ (item.last_name default ""),
+	id: item.id,
+	location: item.city
+}]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+	</flow>
+	<flow name="insertData" doc:id="fccdd56f-0007-4d04-9344-20c62124778a" >
+		<http:listener doc:name="" doc:id="c26af748-c1bc-415b-ac24-6398f7814f5b" config-ref="HTTP_Listener_config" path="/e3InsertData" allowedMethods="POST"/>
+		<db:insert doc:name="Insert" doc:id="8818fae3-7103-4e16-9ea8-a60f2e5f8cb3" config-ref="Database_Config" target="insertDB">
+			<db:sql ><![CDATA[INSERT INTO customers VALUE(:ID, :fname, :lname, :email, :phone, :city)]]></db:sql>
+			<db:input-parameters ><![CDATA[#[{   ID: payload.ID,
+    fname: payload.first_name,
+    lname: payload.last_name,
+    email: payload.email,
+    phone: payload.phone,
+    city:  payload.city
+}]]]></db:input-parameters>
+		</db:insert>
+		<ee:transform doc:name="Transform Message" doc:id="72522e12-ec44-4c45-a96c-91003c03b5a2" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+    "message": "Data successfully sent to MySQL",
+    "rows_affected": payload.affectedRows default 0,
+    "received_data": payload // This shows the DB result object
+}]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+	</flow>
+	<flow name="updateData" doc:id="5cd1bcc6-80a0-43ec-8f1e-f66050c7c36b" >
+		<http:listener doc:name="Listener" doc:id="c09ca949-45a2-4160-bbb9-41131799ab5d" config-ref="HTTP_Listener_config" path="/e3UpdateData" allowedMethods="PUT"/>
+		<db:update doc:name="Update" doc:id="4d261603-8a40-45a3-bfce-536f05051cff" config-ref="Database_Config">
+			<db:sql ><![CDATA[UPDATE customers 
+SET first_name = :fname, last_name = :lname, email= :email, phone= :phone, city = :city 
+WHERE ID = :ID]]></db:sql>
+			<db:input-parameters ><![CDATA[#[{   
+	ID: payload.ID,
+    fname: payload.first_name,
+    lname: payload.last_name,
+    email: payload.email,
+    phone: payload.phone,
+    city: payload.city,
+}]]]></db:input-parameters>
+		</db:update>
+		<ee:transform doc:name="Transform Message" doc:id="86bd4cac-f620-4a9d-a91f-ac30b9850d09" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+    "message": "Data successfully Updated to MySQL",
+    "rows_affected": payload.affectedRows default 0,
+    "received_data": payload // This shows the DB result object
+}]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+	</flow>
+	<flow name="deleteData" doc:id="bd4f849e-693a-4c4f-af59-a623acc10543" >
+		<http:listener doc:name="Listener" doc:id="e73757be-6333-4187-91b5-80b2e8532c72" config-ref="HTTP_Listener_config" path="/e3DeleteData" allowedMethods="DELETE"/>
+		<db:delete doc:name="Delete" doc:id="7d10e04b-1bb5-40f3-b5df-ba0c1f1de8ce" config-ref="Database_Config">
+			<db:sql ><![CDATA[DELETE FROM customers WHERE ID= :ID]]></db:sql>
+			<db:input-parameters ><![CDATA[#[{
+    ID: attributes.queryParams.ID
+}]]]></db:input-parameters>
+		</db:delete>
+		<ee:transform doc:name="Transform Message" doc:id="147c821b-d7d2-4056-8955-17cc39307ecb" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+    "message": "Delete process completed",
+    "id_targeted": attributes.queryParams.id,
+    "rows_deleted": payload.affectedRows,
+    "status": if (payload.affectedRows > 0) "Success" else "Record not found"
+}]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+	</flow>
+	<flow name="queryData" doc:id="8a609609-7131-4ddb-a4aa-cc8402a5e723" >
+		<http:listener doc:name="Listener" doc:id="80206fca-c270-4b6c-a1da-818142a9d0e8" config-ref="HTTP_Listener_config" path="/e3QueryData" allowedMethods="GET" />
+		<db:query-single doc:name="Query single" doc:id="511ab6cb-cd05-42b0-a275-8922688d897f" config-ref="Database_Config">
+			<db:sql ><![CDATA[SELECT * FROM customers where first_name= :name]]></db:sql>
+			<db:input-parameters ><![CDATA[#[{ name : attributes.queryParams.name }]]]></db:input-parameters>
+		</db:query-single>
+		<ee:transform doc:name="Transform Message" doc:id="65163b64-4a75-4b5b-afa0-cf21df7ba6b6" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+if (isEmpty(payload))
+   {
+        "message": "No customer found with that email",
+        "search_query": attributes.queryParams.first_name
+    }
+    else
+    {
+        "message": "Customer found"
+}]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+	</flow>
+</mule>
