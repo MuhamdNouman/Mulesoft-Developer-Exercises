@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:http="http://www.mulesoft.org/schema/mule/http" xmlns="http://www.mulesoft.org/schema/mule/core"
+	xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd">
+	<http:listener-config name="HTTP_Listener_config" doc:name="HTTP Listener config" doc:id="f1fed6da-808f-4c34-9cfb-795a97dee35d" >
+		<http:listener-connection host="0.0.0.0" port="8081" />
+	</http:listener-config>
+	<sub-flow name="Exercise_1_Sub_Flow" doc:id="d4f4b93c-3215-40e4-9212-40502f336081">
+		<set-variable doc:name="Set Variable" doc:id="7ac5b061-027f-46cc-80f5-7d06c3cffcb2" variableName="value" value="Postman" />
+		<logger level="INFO" doc:name="Logger" doc:id="ea707744-266a-43e6-a3d4-a7823b4c7f33" message='#["The variable value is: " ++ (vars.value default "EMPTY")]' />
+		<set-payload value='#["Hi " ++ (vars.value default "") ++ ", your request was successful!"]' doc:name="Set Payload" doc:id="7c86d10e-23e0-454f-b58a-2820aa045033" />
+	</sub-flow>
+	<flow name="Exercise_1_Flow" doc:id="99e7e168-467e-488b-8081-4bb8e0d9459a" >
+		<http:listener doc:name="Listener" doc:id="f3efdfe5-9aca-4601-aa47-63e311086682" config-ref="HTTP_Listener_config" path="/exercise1" allowedMethods="GET"/>
+		<flow-ref doc:name="Flow Reference" doc:id="f39ecfd9-f6dd-4f61-bd3f-b573c8ad4351" name="Exercise_1_Sub_Flow"/>
+	</flow>
+</mule>
