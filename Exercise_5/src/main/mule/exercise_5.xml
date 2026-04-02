@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:validation="http://www.mulesoft.org/schema/mule/validation" xmlns:db="http://www.mulesoft.org/schema/mule/db"
+	xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core"
+	xmlns:http="http://www.mulesoft.org/schema/mule/http" xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd
+http://www.mulesoft.org/schema/mule/db http://www.mulesoft.org/schema/mule/db/current/mule-db.xsd
+http://www.mulesoft.org/schema/mule/validation http://www.mulesoft.org/schema/mule/validation/current/mule-validation.xsd">
+	<http:listener-config name="HTTP_Listener_config" doc:name="HTTP Listener config" doc:id="f30ae0c6-a0cb-490a-be10-f8948964aa40" >
+		<http:listener-connection host="0.0.0.0" port="8081" />
+	</http:listener-config>
+	<db:config name="Database_Config" doc:name="Database Config" doc:id="1f12e2ea-ebce-4fc0-b07d-8fa514e58a48" >
+		<db:my-sql-connection host="localhost" port="3306" user="root" password="1998" database="integration_practice" />
+	</db:config>
+	<flow name="PracticingPropagateError" doc:id="08e79863-2014-4a91-8c0f-caeb5fddbbfc" >
+		<http:listener doc:name="Listener" doc:id="ca17d7e3-f66e-484d-8029-1e155554047b" config-ref="HTTP_Listener_config" path="/propagateError"/>
+		<logger level="INFO" doc:name="Logger" doc:id="22c90218-a019-4197-a97d-2e58f484d0e6" message="Flow Started..."/>
+		<raise-error doc:name="Raise error" doc:id="59187528-4894-48f5-a708-cd89553d4e39" type="ORDER:INVALID_DATA" description="The input data is missing the Order ID."/>
+		<logger level="INFO" doc:name="Logger" doc:id="6f830a19-32a8-4a3e-9530-fb57a7b7cc69" message='"This will never be printed!'/>
+		<error-handler >
+			<on-error-propagate enableNotifications="true" logException="true" doc:name="On Error Propagate" doc:id="e2bb6d95-55fc-4814-bd72-3b0801fbb695" type="ORDER:INVALID_DATA">
+				<ee:transform doc:name="Transform Message" doc:id="bc48edbc-8889-4cb7-894e-9de9ab221b44" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	"Status": "Error",
+	"Type": error.errorType,
+	"Description":error.description
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</on-error-propagate>
+		</error-handler>
+	</flow>
+	<flow name="PracticingContinueError" doc:id="8aba2e1a-df70-4a4c-9b37-ddec62206541" >
+		<http:listener doc:name="Listener" doc:id="90a4e48f-3ab0-47e6-b98b-9456f936d108" config-ref="HTTP_Listener_config" path="/continueError" />
+		<logger level="INFO" doc:name="Logger" doc:id="3fa65145-bab3-4f0b-bbd7-43f4704916f7" message="Flow Started..." />
+		<raise-error doc:name="Raise error" doc:id="4e7bf0b5-9122-4d0b-955c-7861b9200b27" type="ORDER:INVALID_DATA" description="The input data is missing the Order ID." />
+		<logger level="INFO" doc:name="Logger1" doc:id="b416411c-7af6-4b1c-b38e-33ffe4c9bc0e" message='"This will never be printed!' />
+		<error-handler>
+			<on-error-continue enableNotifications="true" logException="true" doc:name="On Error Continue" doc:id="a1727e03-3bb4-4e37-95bf-27c93eccfb31" type="ORDER:INVALID_DATA">
+				<ee:transform doc:name="Transform Message" doc:id="28a7d40d-e747-4bfd-853c-bc360015dd36" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	"Status": "Error",
+	"Type": error.errorType,
+	"Description":error.description
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</on-error-continue>
+		</error-handler>
+	</flow>
+	<flow name="exercise_5Flow" doc:id="9edd48ae-b3c1-4708-8bf3-283f6aaf9e77" >
+		<http:listener doc:name="Listener" doc:id="ab2c1d24-379b-461b-ad92-f2fb9c1d58f0" config-ref="HTTP_Listener_config" path="/getUser"/>
+		<validation:is-not-null doc:name="Is not null" doc:id="6131cdc0-bbe3-499d-87ab-1fed545c368b" value="#[attributes.queryParams.id]" message="&quot;The 'id' query parameter is missing. Please provide a valid customer ID.&quot;"/>
+<db:select doc:name="Select" doc:id="8d24b237-0eab-423d-82e0-a7f5610aa101" config-ref="Database_Config" target="dbData">
+    <db:sql><![CDATA[SELECT * FROM customers where id= :Id]]></db:sql>
+    <db:input-parameters><![CDATA[#[{ "Id" : attributes.queryParams.id }]]]></db:input-parameters>
+</db:select>
+		<ee:transform doc:name="Transform Message" doc:id="27a71a97-a4e7-4218-9ce7-303e745c9c4a" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+vars.dbData]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+	</flow>
+	
+
+</mule>
