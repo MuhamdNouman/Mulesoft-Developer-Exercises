@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core" xmlns:http="http://www.mulesoft.org/schema/mule/http"
+	xmlns="http://www.mulesoft.org/schema/mule/core"
+	xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd">
+	<http:listener-config name="HTTP_Listener_config1" doc:name="HTTP Listener config" doc:id="701a9128-ddf0-4ea7-b004-8efbd6e6ed6b" >
+		<http:listener-connection host="0.0.0.0" port="8081" />
+	</http:listener-config>
+	<http:request-config name="HTTP_Request_config" doc:name="HTTP Request config" doc:id="8bf7fdc4-8463-44b3-9b6b-fdf98e8b6fda">
+		<http:request-connection host="localhost" port="8082" />
+	</http:request-config>
+	<http:listener-config name="HTTP_Listener_config2" doc:name="HTTP Listener config" doc:id="8470683c-9f57-4d2b-a6df-41159d2a2f02" >
+		<http:listener-connection host="0.0.0.0" port="8082" />
+	</http:listener-config>
+	<flow name="API-1" doc:id="06ffe4be-65e0-47a5-b452-f9c176ba709b" >
+		<http:listener doc:name="Listener" doc:id="01e82601-021e-4a5a-b941-b60e77368b9c" config-ref="HTTP_Listener_config1" path="/fetchUser"/>
+		<set-variable value="#[attributes.queryParams.id]" doc:name="Set Variable" doc:id="1d5673b5-ecd4-4e8e-9a91-dea4d4ce03f9" variableName="originalId"/>
+		<logger level="INFO" doc:name="Logger" doc:id="42f6f444-173e-4bf8-8f96-1aafd6c16725" message="BEFORE CALL - Attributes: #[attributes.queryParams.id] | Payload: #[payload]" />
+		<http:request doc:name="Request" doc:id="76c60bb2-5431-4430-8426-a344b989512f" config-ref="HTTP_Request_config" path="internal/user">
+			<http:body ><![CDATA[payload]]></http:body>
+		</http:request>
+		<logger level="INFO" doc:name="Logger" doc:id="cdd8e630-e835-4398-93b1-b07c86b514a0" message="AFTER CALL: Payload is now #[payload], Status Code is #[attributes.statusCode]"/>
+		<ee:transform doc:name="Transform Message" doc:id="489f634f-cfdb-4d1d-9b3b-4f57137f104a" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+	{
+    "result": {
+        "requested_id": vars.originalId,           // From Variable (Memory)
+        "user_profile": payload,                   // From API-2 (New Payload)
+        "api_2_status": attributes.statusCode,     // From API-2 (New Attributes)
+        "original_path": "/fetchUser"              // Hardcoded logic
+    }}
+]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+	</flow>
+	<flow name="API-2" doc:id="ff14e459-7815-49df-8346-f60a864cca19" >
+		<http:listener doc:name="Listener" doc:id="57da3811-feba-4353-bbc8-332600ae5838" config-ref="HTTP_Listener_config2" path="/internal/user"/>
+		<logger level="INFO" doc:name="Logger" doc:id="9fbb3ac2-1889-4201-8d50-3c5415feff24" message="API-2: Received Request for ID: #[attributes.queryParams.id]"/>
+		<ee:transform doc:name="Transform Message" doc:id="ad81a416-5c3d-4573-b8b1-e00d0b791f71" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+    "fullName": "Muhammad Nouman",
+    "role": "Associate SE",
+    "city": "Okara",
+    "serverTime": now()
+}]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+	</flow>
+</mule>
