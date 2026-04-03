@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:validation="http://www.mulesoft.org/schema/mule/validation" xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core"
+	xmlns:db="http://www.mulesoft.org/schema/mule/db"
+	xmlns:http="http://www.mulesoft.org/schema/mule/http" xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+http://www.mulesoft.org/schema/mule/db http://www.mulesoft.org/schema/mule/db/current/mule-db.xsd
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd
+http://www.mulesoft.org/schema/mule/validation http://www.mulesoft.org/schema/mule/validation/current/mule-validation.xsd">
+	<db:config name="Database_Config" doc:name="Database Config" doc:id="becd19f1-31cc-46f2-b317-bee8b5022b61" >
+		<db:my-sql-connection host="localhost" port="3306" user="root" password="1998" database="integration_practice" />
+	</db:config>
+	<http:request-config name="HTTP_Request_config" doc:name="HTTP Request config" doc:id="1a3eb472-efc7-4b95-85ac-83437b9e947d" >
+		<http:request-connection host="localhost" port="8082" />
+	</http:request-config>
+	<http:listener-config name="HTTP_Listener_config2" doc:name="HTTP Listener config" doc:id="aac5126a-e849-463f-9ca3-031c3f35a289" >
+		<http:listener-connection host="0.0.0.0" port="8082" />
+	</http:listener-config>
+	<http:listener-config name="HTTP_Listener_config1" doc:name="HTTP Listener config" doc:id="d2c7f202-86b2-4f77-b532-a1a238ee12a3" >
+		<http:listener-connection host="0.0.0.0" port="8081" />
+	</http:listener-config>
+	<flow name="GetUserData-API-1" doc:id="1648b933-99a5-4004-aa9e-0cd599ef515d" >
+		<http:listener doc:name="Listener" doc:id="1142080d-e53a-4f7f-b143-6dd9a914fc34" path="/getUser" config-ref="HTTP_Listener_config1"/>
+		<try doc:name="Try" doc:id="d1ef0ad0-af30-4603-a4bc-fa7183cba85d" >
+			<validation:is-not-null doc:name="Is not null" doc:id="1fe403e1-7f77-47c8-808d-5db9ae5915d8" value="#[attributes.queryParams.Id]">
+				<error-mapping sourceType="VALIDATION:NULL" targetType="USER:NULL_ID" />
+			</validation:is-not-null>
+			<error-handler >
+				<on-error-propagate enableNotifications="true" logException="true" doc:name="On Error Propagate" doc:id="61a4c698-cbe3-4972-aad1-b8fd1add7797" type="USER:NULL_ID">
+					<logger level="INFO" doc:name="Logger" doc:id="45fe220a-11ef-48e9-92a4-7f49a6c92dd8" message="User did'nt give the ID"/>
+				</on-error-propagate>
+			</error-handler>
+		</try>
+		<db:select doc:name="Select" doc:id="a1ded100-7c1f-43ed-9e16-5cc562d18a40" config-ref="Database_Config">
+			<db:sql ><![CDATA[SELECT * FROM customers WHERE id = :Id]]></db:sql>
+			<db:input-parameters ><![CDATA[#[{"Id": attributes.queryParams.Id}]]]></db:input-parameters>
+		</db:select>
+		<set-variable value="#[payload]" doc:name="Set Variable" doc:id="8c3d52a0-9a5d-48fe-896f-1a35b91bfd0b" variableName="dbData"/>
+		<logger level="INFO" doc:name="Logger" doc:id="af4549a9-05c9-4088-b136-8c4dc0b070c6" message='Sending Email: #[vars.dbData[0].email]'/>
+		<try doc:name="Try" doc:id="778bdf11-9223-4038-a849-265eef50313f" >
+			<http:request doc:name="Request" doc:id="261e12e6-610a-42da-8e16-d35907aa7190" config-ref="HTTP_Request_config" path="/validate">
+				<http:headers ><![CDATA[#[{
+  "client-email": trim(vars.dbData[0].email),
+  "x-request-source": "Enrollment-API"
+}]]]></http:headers>
+			</http:request>
+		</try>
+		<ee:transform doc:name="Transform Message" doc:id="679e4209-36dc-4e1b-a7b6-9f7a7728c1bf" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+  "user_info": {
+      "id": vars.dbData[0].id,
+      "first_name": vars.dbData[0].first_name,
+      "last_name":vars.dbData[0].last_name,
+      "city": vars.dbData[0].city,
+      "email": vars.dbData[0].email
+  },
+  "verification_status": {
+      "is_valid": payload.status == "Verified", 
+      "checked_at": now()
+  }
+}
+]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+	</flow>
+	<flow name="Validate_User" doc:id="53c04d72-d92e-4bc0-a64f-3353924f40f3" >
+		<http:listener doc:name="Listener" doc:id="d7712910-6683-4093-a273-3cfa394d5b61" config-ref="HTTP_Listener_config2" path="/validate"/>
+		<validation:is-true doc:name="Is true" doc:id="18ee1fcb-14fc-4f74-8276-571cec2e51ec" message="Invalid email format received in headers." expression='#[attributes.headers["client-email"] contains "@"]'>
+			<error-mapping targetType="USER:INVALID_EMAIL" />
+		</validation:is-true>
+		<ee:transform doc:name="Transform Message" doc:id="5513fa5a-f764-4559-956d-5add5e72bda6" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	"status":"Verified"
+}]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+		<error-handler >
+			<on-error-continue enableNotifications="true" logException="true" doc:name="On Error Continue" doc:id="27f15461-b48a-4b94-ac74-781eb1aaeff8" >
+				<ee:transform doc:name="Transform Message" doc:id="919d8661-2014-44bf-ac8c-27ba644cf652" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	"status":"Unverified"
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</on-error-continue>
+		</error-handler>
+	</flow>
+</mule>
