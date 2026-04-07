@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core" xmlns:oauth="http://www.mulesoft.org/schema/mule/oauth"
+	xmlns:http="http://www.mulesoft.org/schema/mule/http"
+	xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+http://www.mulesoft.org/schema/mule/oauth http://www.mulesoft.org/schema/mule/oauth/current/mule-oauth.xsd
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd">
+	<http:request-config name="Salesforce_Request_config" doc:name="HTTP Request config" doc:id="53869590-b47b-4c7a-89fa-4bbb3c5c37e9" >
+		<http:request-connection protocol="HTTPS" host="empathetic-raccoon-86x6i-dev-ed.trailblaze.my.salesforce.com" port="443">
+			<http:authentication >
+				<oauth:client-credentials-grant-type clientId="3MVG95mg0lk4bathAEo.CYX4RTK5OmSQeMeQ44oUupzpHqRAMDw_GuJmfW2_Kgs5Gtpc4JczYVWMpdR1Xwews" clientSecret="7CDF832C0476CD7B1523364C4F63B6F47AC6E75CBB1F49DB8260AA76C24E92B7" tokenUrl="https://empathetic-raccoon-86x6i-dev-ed.trailblaze.my.salesforce.com/services/oauth2/token" />
+			</http:authentication>
+		</http:request-connection>
+	</http:request-config>
+	<http:listener-config name="HTTP_Listener_config" doc:name="HTTP Listener config" doc:id="783b1119-53a1-4b92-a309-6efc75ea596d" >
+		<http:listener-connection host="0.0.0.0" port="8081" />
+	</http:listener-config>
+	<flow name="exerice_9-oauth-2.0Flow" doc:id="ee9a8b9b-e024-40c2-930f-77eaccf684c0" >
+		<http:listener doc:name="Listener" doc:id="5694f21b-7d90-4f80-a0bb-9f1b8b7ff069" config-ref="HTTP_Listener_config" path="/getAccounts" allowedMethods="GET"/>
+		<http:request doc:name="Request" doc:id="6834e5fb-4ce2-46a4-b8be-716a58f2300a" config-ref="Salesforce_Request_config" path="/services/data/v58.0/query/?q=SELECT+Name,Industry+FROM+Account+LIMIT+5"/>
+		<ee:transform doc:name="Transform Message" doc:id="55bfc585-3e05-46aa-b687-989c9c16c6cf" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+payload.records map (account) -> {
+    "Account_Name": account.Name,
+    "Sector": account.Industry default "Not Specified"
+}]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+	</flow>
+</mule>

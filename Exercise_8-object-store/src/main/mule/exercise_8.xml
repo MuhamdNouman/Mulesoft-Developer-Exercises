@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core" xmlns:os="http://www.mulesoft.org/schema/mule/os"
+	xmlns:http="http://www.mulesoft.org/schema/mule/http"
+	xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+http://www.mulesoft.org/schema/mule/os http://www.mulesoft.org/schema/mule/os/current/mule-os.xsd
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd">
+	<http:listener-config name="HTTP_Listener_config" doc:name="HTTP Listener config" doc:id="2eaf7baa-8413-4caa-b668-481871e510b9" >
+		<http:listener-connection host="0.0.0.0" port="8081" />
+	</http:listener-config>
+	<os:object-store name="Contact_Book_Config" doc:name="Object store" doc:id="aaa2a2fd-11f2-42b1-9f5d-ffee46f7ed93" maxEntries="50" entryTtl="1" expirationIntervalUnit="SECONDS" entryTtlUnit="HOURS"/>
+	<flow name="storeContact" doc:id="96aeb676-481d-4b85-b834-56327a88bc5c" >
+		<http:listener doc:name="Listener" doc:id="9f6cfff4-c2bc-4079-91db-89a4bc0278c6" config-ref="HTTP_Listener_config" path="/store"/>
+		<logger level="INFO" doc:name="Logger" doc:id="5dfce778-e458-4a88-96b8-5c25dc13d0f3" message="storing #[payload.name] as key and #[payload.phone] as phone number"/>
+		<foreach doc:name="For Each" doc:id="237914e4-a581-4fee-a098-93cf11e868fb" >
+			<os:store doc:name="Store" doc:id="821c24d1-8da3-45c4-8121-f492cb6cff6d" key="#[payload.name]" objectStore="Contact_Book_Config">
+			<os:value><![CDATA[#[payload.phone]]]></os:value>
+		</os:store>
+		</foreach>
+		<ee:transform doc:name="Transform Message" doc:id="b9ffb7e5-5a52-492a-a438-35d7f60f57f3" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	"message":"Contact saved successfully"
+}]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+	</flow>
+	<flow name="retrieveContact" doc:id="78ff123f-8d8a-4ac8-a3c3-0f1e94bd89be" >
+		<http:listener doc:name="Listener" doc:id="d0dc6e85-deb6-4386-8a70-0a1ea93dbe94" config-ref="HTTP_Listener_config" path="/find"/>
+		<os:retrieve doc:name="Retrieve" doc:id="8deda525-2c84-44bb-be0c-6ad1c034d770" key="#[attributes.queryParams.name]" objectStore="Contact_Book_Config">
+			<os:default-value ><![CDATA[not found]]></os:default-value>
+		</os:retrieve>
+		<ee:transform doc:name="Transform Message" doc:id="7d4f9783-5608-472c-8f18-4f04f625bf01" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	"contact": payload
+}]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+	</flow>
+	<flow name="deleteContact" doc:id="f65217de-e193-4502-81d6-577c227f500f" >
+		<http:listener doc:name="Listener" doc:id="3e3623d0-ba1d-4702-9844-104eb6924ef8" config-ref="HTTP_Listener_config" path="/remove"/>
+		<os:remove doc:name="Remove" doc:id="00cc8f75-5cf8-4864-85cd-adcfb373c8c4" key="#[attributes.queryParams.name]" objectStore="Contact_Book_Config"/>
+		<ee:transform doc:name="Transform Message" doc:id="06428c1a-1bfd-4620-8526-29603cbac296" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+   "Name":attributes.queryParams.name,
+    "Status":"Contact Deleted Sucessfully"
+}]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+	</flow>
+</mule>
