@@ -1,0 +1,4 @@
+%dw 2.0
+
+type auto_60b41fc0_f7bc_42f0_a1ef_0d208549187f_Input_Payload = Array<{|  account_name: String {"typeId": "Name"} | Null,   location: String {"typeId": "BillingCity"},   phone_number: String {"typeId": "Phone"},   sf_id: Null|}>
+

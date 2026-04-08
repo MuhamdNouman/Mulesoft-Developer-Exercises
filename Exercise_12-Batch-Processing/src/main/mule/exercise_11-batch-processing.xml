@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:db="http://www.mulesoft.org/schema/mule/db" xmlns:batch="http://www.mulesoft.org/schema/mule/batch"
+	xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core"
+	xmlns:http="http://www.mulesoft.org/schema/mule/http" xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd
+http://www.mulesoft.org/schema/mule/batch http://www.mulesoft.org/schema/mule/batch/current/mule-batch.xsd
+http://www.mulesoft.org/schema/mule/db http://www.mulesoft.org/schema/mule/db/current/mule-db.xsd">
+	<http:listener-config name="HTTP_Listener_config" doc:name="HTTP Listener config" doc:id="39631c7e-6d1a-4f68-9152-25eaf7779f6e" >
+		<http:listener-connection host="0.0.0.0" port="8081" />
+	</http:listener-config>
+	<db:config name="Database_Config" doc:name="Database Config" doc:id="4cb6ca5b-1cfa-4803-ac11-a492eaebc85d" >
+		<db:my-sql-connection host="localhost" port="3306" user="root" password="1998" database="integration_practice" />
+	</db:config>
+	<flow name="exercise_11-batch-processingFlow" doc:id="268bc938-03ed-49d1-80ca-4284d15e3d97" >
+		<http:listener doc:name="Listener" doc:id="dc3b79a7-e244-4751-b017-bd7d635bbd26" config-ref="HTTP_Listener_config" path="/batchJob"/>
+		<ee:transform doc:name="Transform Message" doc:id="dad0fbc5-99c3-463a-aaec-2184d83fbe62" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/java
+---
+payload]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+		<batch:job jobName="exercise_11-batch-processingBatch_Job" doc:id="61447bbc-910d-4323-aab0-60ff95e11af5" maxFailedRecords="-1">
+			<batch:process-records >
+				<batch:step name="Batch_Step" doc:id="29ea12ce-c4af-4cda-8166-2b0ef35f89f2" >
+					<ee:transform doc:name="Transform Message" doc:id="3ce37313-b990-430c-b5b8-6c1e59d189ea" >
+						<ee:message >
+							<ee:set-payload ><![CDATA[%dw 2.0
+output application/java
+---
+{
+    // The keys on the LEFT must exactly match your SQL :parameters
+    first_name: payload.first_name, 
+    last_name: payload.last_name,
+    email: payload.email,
+    city: payload.city
+}]]></ee:set-payload>
+						</ee:message>
+					</ee:transform>
+					<batch:aggregator doc:name="Batch Aggregator" doc:id="bd02cd9b-9d59-4eb3-9b4d-e27480f4a29f" size="10">
+						<db:bulk-insert doc:name="Bulk insert" doc:id="ef4707e5-f4f2-4fee-a5f4-4ed3c39d5046" config-ref="Database_Config">
+							<db:sql ><![CDATA[INSERT INTO customers (first_name, last_name, email, city) VALUES (:first_name, :last_name, :email, :city)]]></db:sql>
+						</db:bulk-insert>
+					</batch:aggregator>
+				</batch:step>
+			</batch:process-records>
+			<batch:on-complete >
+				<logger level="INFO" doc:name="Logger" doc:id="01fd856c-e284-4a3f-8fab-e9af519abfe1" message='#["Batch Job Finished! Total Records: " ++ payload.totalRecords ++ &#10;" | Successful: " ++ payload.successfulRecords ++ &#10;" | Failed: " ++ payload.failedRecords]'/>
+			</batch:on-complete>
+		</batch:job>
+	</flow>
+</mule>

@@ -1,0 +1,118 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core" xmlns:salesforce="http://www.mulesoft.org/schema/mule/salesforce"
+	xmlns:db="http://www.mulesoft.org/schema/mule/db"
+	xmlns:oauth="http://www.mulesoft.org/schema/mule/oauth" xmlns:http="http://www.mulesoft.org/schema/mule/http" xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+http://www.mulesoft.org/schema/mule/oauth http://www.mulesoft.org/schema/mule/oauth/current/mule-oauth.xsd
+http://www.mulesoft.org/schema/mule/db http://www.mulesoft.org/schema/mule/db/current/mule-db.xsd
+http://www.mulesoft.org/schema/mule/salesforce http://www.mulesoft.org/schema/mule/salesforce/current/mule-salesforce.xsd
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd">
+	<http:listener-config name="HTTP_Listener_config" doc:name="HTTP Listener config" doc:id="95b93ac7-c3cb-456f-8c3b-aa35404d40bd" >
+		<http:listener-connection host="0.0.0.0" port="8081" />
+	</http:listener-config>
+	<db:config name="Database_Config" doc:name="Database Config" doc:id="4196ac5e-cdb6-43a0-a66c-ea331fe3aef6" >
+		<db:my-sql-connection host="localhost" port="3306" user="root" password="1998" database="sfaccounts" />
+	</db:config>
+	<salesforce:sfdc-config name="Salesforce_Config" doc:name="Salesforce Config" doc:id="26a2ad5a-a539-4bcc-a74d-56ba4fab687f" >
+		<salesforce:oauth-client-credentials-connection >
+			<salesforce:oauth-client-credentials clientId="3MVG95mg0lk4bathAEo.CYX4RTK5OmSQeMeQ44oUupzpHqRAMDw_GuJmfW2_Kgs5Gtpc4JczYVWMpdR1Xwews" clientSecret="7CDF832C0476CD7B1523364C4F63B6F47AC6E75CBB1F49DB8260AA76C24E92B7" tokenUrl="https://empathetic-raccoon-86x6i-dev-ed.trailblaze.my.salesforce.com/services/oauth2/token" />
+		</salesforce:oauth-client-credentials-connection>
+	</salesforce:sfdc-config>
+	<flow name="expAPI-account-managment-flow" doc:id="7a163c9c-b99f-4454-9ec4-e4e549fdc236" >
+		<http:listener doc:name="Listener" doc:id="4b7311c1-d614-4d29-976c-fc5f070a933d" config-ref="HTTP_Listener_config" path="/accounts"/>
+		<ee:transform doc:name="Transform Message" doc:id="841662c1-f7cd-46b6-8b37-13fc371f19ef" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+payload]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+		<flow-ref doc:name="Flow Reference" doc:id="3238cdaf-7ebf-4dbc-baf2-5213ef2ec466" name="proAPI-account-logic-subflow"/>
+	</flow>
+	<sub-flow name="proAPI-account-logic-subflow" doc:id="d123e90c-f3f6-4d7a-a839-c241f4f14bcc" >
+		<flow-ref doc:name="Flow Reference" doc:id="a75c5e42-79a2-40b8-8efa-badf2a49c297" name="sysAPI-sf-query-subflow"/>
+		<choice doc:name="Choice" doc:id="15a39aac-95bb-43d6-acdf-e895167718ca" >
+			<when expression="#[sizeOf(payload) &gt; 0]">
+				<flow-ref doc:name="Flow Reference" doc:id="ca5954dc-2f43-46ff-9976-a12f9a5f259b" name="sysAPI-DB-Subflow"/>
+			</when>
+			<otherwise>
+				<logger level="INFO" doc:name="Logger" doc:id="365c104d-b992-493a-bc3d-59420eee8215" message="There isn't any Accounts in Salesforce."/>
+			</otherwise>
+		</choice>
+	</sub-flow>
+	<sub-flow name="sysAPI-sf-query-subflow" doc:id="72ea43a0-a81f-4ae7-94ff-cdb902eae39f" >
+		<salesforce:query doc:name="Query" doc:id="e473e537-38fc-40ae-961d-2f80cdd1f01b" config-ref="Salesforce_Config">
+			<salesforce:salesforce-query ><![CDATA[#[payload.query]]]></salesforce:salesforce-query>
+		</salesforce:query>
+		<ee:transform doc:name="Transform Message" doc:id="3c4b67df-aa35-487e-a607-01d2e52ba143" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+payload map (item) -> {
+    account_name: item.Name,
+    location: item.BillingCity default "N/A",
+    phone_number: item.Phone default "No Phone",
+    sf_id: item.Id
+}]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+	</sub-flow>
+	<!-- [STUDIO:"sysAPI-sf-upsert-subflow"]<sub-flow name="sysAPI-sf-upsert-subflow" doc:id="342f653c-101a-4d70-96f4-1d10c640d935" >
+		<ee:transform doc:name="Transform Message" doc:id="1633a6d9-4b74-47f7-95f4-9d035dc28d0d">
+			<ee:message>
+				<ee:set-payload><![CDATA[%dw 2.0
+output application/java
+&#45;&#45;-
+[{
+    // If the query found an account, grab the ID. Otherwise, leave it null.
+   (Id: payload[0&#93;.sf_id) if (sizeOf(payload default [&#93;) > 0),
+    
+    // Pull the rest of the data from the saved variable
+    Name: vars.originalRequest.name,
+    BillingCity: vars.originalRequest.city,
+    Phone: vars.originalRequest.phone,
+    Industry: "Technology",
+    Description: "Upserted by Monolith API"
+}&#93;&#93;&#93;></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+		<salesforce:upsert doc:name="Upsert" doc:id="d34e2d6c-2d0e-4b5b-a6dc-61fa9f648298" config-ref="Salesforce_Config" objectType="Account" externalIdFieldName="ID"/>
+		<ee:transform doc:name="Transform Message1" doc:id="a2813bf6-a6e5-4544-9ca2-a8bf4b2a55d7" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+&#45;&#45;-
+{
+//    // We use payload[0&#93; if it's a list, or just payload if it's one object
+//    "success": payload.successful,
+//    "Id": payload.id default payload[0&#93;.id,
+//    "errors": (payload.errors default payload[0&#93;.errors) default [&#93;
+}
+ &#93;&#93;></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+	</sub-flow> [STUDIO] -->
+	<sub-flow name="sysAPI-DB-Subflow" doc:id="60b41fc0-f7bc-42f0-a1ef-0d208549187f" >
+		<db:bulk-insert doc:name="Bulk insert" doc:id="85c94513-1c4b-4007-a4ca-63d0c13579c2" config-ref="Database_Config">
+			<db:sql ><![CDATA[INSERT INTO Accounts (sf_id, account_name, location, phone_number) 
+        VALUES (:sf_id, :account_name, :location, :phone_number)
+        ON DUPLICATE KEY UPDATE 
+        account_name = VALUES(account_name),
+        phone_number = VALUES(phone_number),
+        location = VALUES(location)]]></db:sql>
+		</db:bulk-insert>
+		<ee:transform doc:name="Transform Message" doc:id="d8c32bc6-305d-482a-a368-bc90865be462" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	"Message": "Data Sucessfully Inserted/Updated"
+}]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+	</sub-flow>
+</mule>
