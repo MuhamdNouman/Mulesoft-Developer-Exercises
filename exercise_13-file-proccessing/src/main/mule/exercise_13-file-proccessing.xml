@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:db="http://www.mulesoft.org/schema/mule/db" xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core"
+	xmlns:file="http://www.mulesoft.org/schema/mule/file"
+	xmlns:http="http://www.mulesoft.org/schema/mule/http" xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+http://www.mulesoft.org/schema/mule/file http://www.mulesoft.org/schema/mule/file/current/mule-file.xsd
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd
+http://www.mulesoft.org/schema/mule/db http://www.mulesoft.org/schema/mule/db/current/mule-db.xsd">
+	<http:listener-config name="HTTP_Listener_config" doc:name="HTTP Listener config" doc:id="80c87ffd-4aba-4034-8d28-ee50a1559bc2" >
+		<http:listener-connection host="0.0.0.0" port="8081" />
+	</http:listener-config>
+	<file:config name="File_Config" doc:name="File Config" doc:id="f9bc146c-2aec-43e1-8261-789b55c9953c" >
+		<file:connection workingDir="C:\Users\Lenovo\Desktop\Drop" />
+	</file:config>
+	<db:config name="Database_Config" doc:name="Database Config" doc:id="dafc6703-419a-4b75-9913-e296f6a233f3" >
+		<db:my-sql-connection host="localhost" port="3306" user="root" password="1998" database="integration_practice" />
+	</db:config>
+	<flow name="exercise_13-file-proccessingFlow1" doc:id="f2b0fe64-f595-408e-9e13-7607911d98ed" >
+		<file:listener doc:name="On New or Updated File" doc:id="0b0c34a0-458b-48dd-a232-74fc25413e34" config-ref="File_Config" directory="C:\Users\Lenovo\Desktop\Drop\Input" moveToDirectory="C:\Users\Lenovo\Desktop\Drop\Processed">
+			<scheduling-strategy >
+				<fixed-frequency frequency="10" timeUnit="SECONDS"/>
+			</scheduling-strategy>
+			<file:matcher filenamePattern="*.xml"/>
+		</file:listener>
+		<ee:transform doc:name="Transform Message" doc:id="0a3103ec-e536-4ff9-a825-6d513a16606f" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/java
+---
+ payload.employees.*employee map((item) ->{
+		first_name: item.first_name,
+		last_name: item.last_name,
+		email: item.email,
+		phone: item.phone,
+		city:item.city
+	})
+	]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+		<db:bulk-insert doc:name="Bulk insert" doc:id="e2b46d1c-636e-4ff3-96dd-2d9dc4e9167b" config-ref="Database_Config">
+			<db:sql ><![CDATA[INSERT INTO customers(first_name, last_name, phone, city, email) VALUES (:first_name, :last_name, :phone, :city, :email)]]></db:sql>
+		</db:bulk-insert>
+		<logger level="INFO" doc:name="Logger" doc:id="918079ff-e0da-4c5b-9aac-8aa3b1a2faf5" message="Values Inserted Sucessfully"/>
+	</flow>
+</mule>
