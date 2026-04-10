@@ -1,0 +1,110 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core" xmlns:os="http://www.mulesoft.org/schema/mule/os"
+	xmlns:oauth="http://www.mulesoft.org/schema/mule/oauth"
+	xmlns:http="http://www.mulesoft.org/schema/mule/http" xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+http://www.mulesoft.org/schema/mule/oauth http://www.mulesoft.org/schema/mule/oauth/current/mule-oauth.xsd
+http://www.mulesoft.org/schema/mule/os http://www.mulesoft.org/schema/mule/os/current/mule-os.xsd
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd">
+	<http:listener-config name="HTTP_Listener_config" doc:name="HTTP Listener config" doc:id="b7d840ee-5d2e-4ed2-90f7-e289a87e5381" >
+		<http:listener-connection host="0.0.0.0" port="8082" />
+	</http:listener-config>
+	<http:request-config name="HTTP_Request_config" doc:name="HTTP Request config" doc:id="d4395932-502d-491a-8334-8c29f72bcbec" >
+		<http:request-connection protocol="HTTPS" host="empathetic-raccoon-86x6i-dev-ed.trailblaze.my.salesforce.com" port="443" >
+		</http:request-connection>
+	</http:request-config>
+	<configuration-properties doc:name="Configuration properties" doc:id="d0127647-a393-4ffa-b954-1369364a4add" file="config.yaml" />
+	<os:object-store name="Authtoken_Object_store" doc:name="Object store" doc:id="aed83104-0915-4170-8231-60d185eb0fb3" maxEntries="100" entryTtl="30" entryTtlUnit="DAYS" />
+	<flow name="exercise_11-oauth-deep-diveFlow" doc:id="93526c6c-a001-45cc-a1bd-aee5d2bf16e6" >
+		<http:listener doc:name="Listener" doc:id="b43dc500-82f1-4b1e-a0d8-fbfba242c87a" config-ref="HTTP_Listener_config" path="/login">
+			<http:response statusCode="302" >
+				<http:headers ><![CDATA[#[output application/java
+---
+{
+	"Location" : "https://login.salesforce.com/services/oauth2/authorize?response_type=code&client_id=3MVG95mg0lk4bathAEo.CYX4RTK5OmSQeMeQ44oUupzpHqRAMDw_GuJmfW2_Kgs5Gtpc4JczYVWMpdR1Xwews&redirect_uri=http://localhost:8082/callback"}]]]></http:headers>
+			</http:response>
+		</http:listener>
+		<logger level="INFO" doc:name="Logger" doc:id="52d9b47e-7749-4ae7-9fe7-5b413fc6460b" message="Redirecting user to Salesforce Login..."/>
+	</flow>
+	<flow name="exercise_11-oauth-deep-diveFlow1" doc:id="f6cb42c6-871b-4008-af8f-6875ceafc271" >
+		<http:listener doc:name="Listener" doc:id="bcc6f650-36a7-4bda-b370-744071e989ee" config-ref="HTTP_Listener_config" path="/callback"/>
+		<set-variable value="#[attributes.queryParams.code]" doc:name="Set Variable" doc:id="e7c46384-9dd2-4618-b6a1-2ead65b904e5" variableName="authcode"/>
+		<http:request doc:name="Request" doc:id="91cffa2a-68d3-4be9-931d-cdb5b6bfa6f7" config-ref="HTTP_Request_config" method="POST" url="https://empathetic-raccoon-86x6i-dev-ed.trailblaze.my.salesforce.com/services/oauth2/token">
+			<http:body ><![CDATA[#[%dw 2.0
+output application/x-www-form-urlencoded
+---
+{
+  "grant_type": "authorization_code",
+  "code": vars.authcode, // The code you just extracted
+  "client_id": p('sfdc.client_id'),
+  "client_secret": p('sfdc.client_secret'),
+  "redirect_uri": "http://localhost:8082/callback" 
+}]]]></http:body>
+			<http:headers ><![CDATA[#[%dw 2.0
+output application/java
+---
+{
+	"Content-Type" : "application/x-www-form-urlencoded"
+}]]]></http:headers>
+		</http:request>
+		<os:store doc:name="Store" doc:id="3f09db90-f2c3-4a20-b3e6-4a0bb8a7affd" key="SF_Token" objectStore="Authtoken_Object_store"/>
+	</flow>
+	<flow name="exercise_11-oauth-deep-diveFlow2" doc:id="89406169-42e0-48b0-af5e-5da1ecdc670a" >
+		<http:listener doc:name="Listener" doc:id="28c801ba-0848-40c5-8a25-6316a9a3f112" config-ref="HTTP_Listener_config" path="/get-accounts"/>
+		<os:retrieve doc:name="Retrieve" doc:id="02efb379-b22e-4d06-90b9-78bf30635498" objectStore="Authtoken_Object_store" target="Auth_Token" key="SF_Token">
+			<os:default-value ><![CDATA[#[{}]]]></os:default-value>
+		</os:retrieve>
+		<logger level="INFO" doc:name="Logger" doc:id="978d7cde-2584-4f33-bf94-3916850ab3fb" message="#[vars.Auth_Token]"/>
+		<choice doc:name="Choice" doc:id="5943c4de-95bd-4204-9934-8a17a5e01008" >
+			<when expression="vars.Auth_Token.access_token != null">
+				<try doc:name="Try" doc:id="48c4b827-690e-4d77-8fec-09ddaf144365" >
+					<flow-ref doc:name="Flow Reference" doc:id="d655afb6-d49f-451b-9ea8-d4f0771dba69" name="FetchSalesforceData"/>
+					<error-handler >
+						<on-error-continue enableNotifications="true" logException="true" doc:name="On Error Continue" doc:id="a7047c00-8827-41a9-8783-6e7f2fcbf2c5" type="HTTP:UNAUTHORIZED">
+							<logger level="INFO" doc:name="Logger" doc:id="d9ab7b4b-045a-427e-a146-215739d8c5d4" message="Fetching Refresh Token"/>
+							<http:request doc:name="Request" doc:id="343f41c0-d46e-486f-9e10-27238fb9109f" method="POST" url="https://login.salesforce.com/services/oauth2/token">
+								<http:body ><![CDATA[#[%dw 2.0
+output application/x-www-form-urlencoded
+---
+{
+    "grant_type": "refresh_token",
+    "refresh_token": vars.Auth_Token.refresh_token,
+    "client_id": p('sfdc.client_id'),
+    "client_secret": p('sfdc.client_secret')
+}]]]></http:body>
+							</http:request>
+							<os:store doc:name="Store" doc:id="f5d413ef-9a24-4196-a3a4-279fe8af7473" key="SF_Token" objectStore="Authtoken_Object_store"/>
+							<os:retrieve doc:name="Retrieve" doc:id="7babdfcb-2fc2-4734-9913-d128c4f281b7" key="SF_Token" objectStore="Authtoken_Object_store" target="Auth_Token" >
+								<os:default-value ><![CDATA[#[{}]]]></os:default-value>
+							</os:retrieve>
+							<flow-ref doc:name="Flow Reference" doc:id="4d5d900a-9d19-458c-86ad-a03d6262745c" name="FetchSalesforceData" />
+						</on-error-continue>
+					</error-handler>
+				</try>
+			</when>
+			<otherwise >
+				<ee:transform doc:name="Transform Message" doc:id="4bf70efc-f001-48a7-b62d-41090ada8663" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	"message":"Session Expired! Please /login to get new credentials."
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</otherwise>
+		</choice>
+	</flow>
+	<sub-flow name="FetchSalesforceData" doc:id="9613fe86-9229-4314-85ef-e1055e2ff001" >
+		<logger level="INFO" doc:name="Logger" doc:id="4eff3dd7-663e-41c8-a389-6d7cd780d638" message="#[vars.Auth_Token]" />
+		<http:request doc:name="Request" doc:id="a109d665-e93b-4fef-afc0-e2ad1c3d23be" url='#[vars.Auth_Token.instance_url ++ "/services/data/v60.0/query?q=SELECT+Name+FROM+Account+LIMIT+7"]'>
+			<http:headers><![CDATA[#[output application/java
+---
+{
+"Authorization": "Bearer " ++ vars.Auth_Token.access_token
+}]]]></http:headers>
+		</http:request>
+	</sub-flow>
+</mule>
